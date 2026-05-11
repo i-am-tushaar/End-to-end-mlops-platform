@@ -1,8 +1,1 @@
-mlflow
-pandas
-scikit-learn
-nltk
-numpy
-
-
-
+﻿
