@@ -1,1 +1,12 @@
-﻿
+﻿pandas
+numpy
+mlflow
+dagshub
+scikit-learn
+xgboost
+nltk
+scipy
+setuptools
+dvc
+
+-e .
