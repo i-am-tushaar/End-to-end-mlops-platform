@@ -221,3 +221,8 @@ cred.txt
 local_s3
 /data/
 /models/
+models/
+*.lnk
+
+reports/metrics.json
+reports/experiment_info.jsondvc 
