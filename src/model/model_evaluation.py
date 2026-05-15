@@ -4,10 +4,22 @@ import pickle
 import json
 from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
 import logging
+import os
+from src.logger import logging
+
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv("MLFLOW_TRACKING_USERNAME")
+os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("MLFLOW_TRACKING_PASSWORD")
+os.environ["MLFLOW_TRACKING_INSECURE_TLS"] = "true"
+
 import mlflow
 import mlflow.sklearn
 import dagshub
-import os
+
 from src.logger import logging
 
 
@@ -32,7 +44,13 @@ from src.logger import logging
 # Below code block is for local use
 # -------------------------------------------------------------------------------------
 mlflow.set_tracking_uri('https://dagshub.com/tushar.dataexpert/End-to-end-mlops-platform.mlflow')
-dagshub.init(repo_owner='tushar.dataexpert', repo_name='End-to-end-mlops-platform', mlflow=True)
+mlflow.set_registry_uri('https://dagshub.com/tushar.dataexpert/End-to-end-mlops-platform.mlflow')
+
+dagshub.init(
+    repo_owner='tushar.dataexpert',
+    repo_name='End-to-end-mlops-platform',
+    mlflow=True
+)
 # -------------------------------------------------------------------------------------
 
 
@@ -131,9 +149,21 @@ def main():
                 for param_name, param_value in params.items():
                     mlflow.log_param(param_name, param_value)
             
-            # Log model to MLflow
-            mlflow.sklearn.log_model(clf, "model")
-            
+            # ✅ FIXED MODEL LOGGING
+            import tempfile
+            import os
+
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                model_path = os.path.join(tmp_dir, "model")
+
+                # Save model locally
+                mlflow.sklearn.save_model(clf, model_path)
+
+                # Log as artifact to MLflow (DagsHub)
+                mlflow.log_artifacts(model_path, artifact_path="model")
+
+            print("✅ Model saved and logged under 'model/'")
+
             # Save model info
             save_model_info(run.info.run_id, "model", 'reports/experiment_info.json')
             
