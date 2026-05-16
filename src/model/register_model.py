@@ -4,6 +4,8 @@ import json
 import logging
 from src.logger import logging
 import os
+from mlflow.tracking import MlflowClient
+import time
 
 import warnings
 warnings.simplefilter("ignore", UserWarning)
@@ -62,25 +64,34 @@ def load_model_info(file_path: str) -> dict:
 
 
 def register_model(model_name: str, model_info: dict):
-    """Register the model to the MLflow Model Registry."""
     try:
         model_uri = f"runs:/{model_info['run_id']}/{model_info['model_path']}"
-        
-        # 🔹 Debug (very useful)
         print("Model URI:", model_uri)
 
-        # Register the model
+        # Register model
         model_version = mlflow.register_model(model_uri, model_name)
-        
-        # Transition the model to "Staging"
-        client = mlflow.tracking.MlflowClient()
+
+        client = MlflowClient()
+
+        # 🔥 WAIT until model is READY
+        for _ in range(10):
+            mv = client.get_model_version(
+                name=model_name,
+                version=model_version.version
+            )
+            if mv.status == "READY":
+                break
+            print("⏳ Waiting for model to be READY...")
+            time.sleep(2)
+
+        # ✅ Now transition stage
         client.transition_model_version_stage(
             name=model_name,
             version=model_version.version,
             stage="Staging",
             archive_existing_versions=True
         )
-        
+
         print(f"✅ Model '{model_name}' version {model_version.version} moved to Staging")
 
     except Exception as e:
