@@ -115,7 +115,7 @@ PREDICTION_COUNT = Counter(
 model_name = "my_model"
 def get_latest_model_version(model_name):
     client = mlflow.MlflowClient()
-    latest_version = client.get_latest_versions(model_name, stages=["Production"])
+    latest_version = client.get_latest_versions(model_name, stages=["Staging"])
     if not latest_version:
         latest_version = client.get_latest_versions(model_name, stages=["None"])
     return latest_version[0].version if latest_version else None
@@ -143,12 +143,11 @@ def predict():
     text = request.form["text"]
     # Clean text
     text = normalize_text(text)
-    # Convert to features
+    # Transform
     features = vectorizer.transform([text])
-    features_df = pd.DataFrame(features.toarray(), columns=[str(i) for i in range(features.shape[1])])
 
     # Predict
-    result = model.predict(features_df)
+    result = model.predict(features)
     prediction = result[0]
 
     # Increment prediction count metric

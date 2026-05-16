@@ -19,13 +19,25 @@ def load_data(file_path: str) -> pd.DataFrame:
         logging.error('Unexpected error occurred while loading the data: %s', e)
         raise
 
-def train_model(X_train: np.ndarray, y_train: np.ndarray) -> LogisticRegression:
-    """Train the Logistic Regression model."""
+def train_model(X_train, y_train):
     try:
-        clf = LogisticRegression(C=1, solver='liblinear', penalty='l2')
+        clf = LogisticRegression(
+            C=1,
+            solver='liblinear',
+            penalty='l2',
+            class_weight='balanced',
+            max_iter=1000
+        )
+
         clf.fit(X_train, y_train)
+
+        from sklearn.metrics import classification_report
+        y_pred = clf.predict(X_train)
+        print(classification_report(y_train, y_pred))
+
         logging.info('Model training completed')
         return clf
+
     except Exception as e:
         logging.error('Error during model training: %s', e)
         raise
