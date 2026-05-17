@@ -2,68 +2,45 @@ from flask import Flask, render_template, request
 import mlflow
 import pickle
 import os
-import pandas as pd
-from prometheus_client import Counter, Histogram, generate_latest, CollectorRegistry, CONTENT_TYPE_LATEST
 import time
+import re
+import string
+
+from prometheus_client import Counter, Histogram, generate_latest, CollectorRegistry, CONTENT_TYPE_LATEST
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import stopwords
-import string
-import re
-import dagshub
 
+import dagshub
 import warnings
-warnings.simplefilter("ignore", UserWarning)
 warnings.filterwarnings("ignore")
 
-def lemmatization(text):
-    """Lemmatize the text."""
-    lemmatizer = WordNetLemmatizer()
-    text = text.split()
-    text = [lemmatizer.lemmatize(word) for word in text]
-    return " ".join(text)
+# =========================
+# TEXT PREPROCESSING
+# =========================
+lemmatizer = WordNetLemmatizer()
+stop_words = set(stopwords.words("english"))
 
-def remove_stop_words(text):
-    """Remove stop words from the text."""
-    stop_words = set(stopwords.words("english"))
-    text = [word for word in str(text).split() if word not in stop_words]
-    return " ".join(text)
+def preprocess_text(text):
+    text = str(text)
 
-def removing_numbers(text):
-    """Remove numbers from the text."""
+    # remove urls
+    text = re.sub(r'https?://\S+|www\.\S+', '', text)
+
+    # remove numbers
     text = ''.join([char for char in text if not char.isdigit()])
-    return text
 
-def lower_case(text):
-    """Convert text to lower case."""
-    text = text.split()
-    text = [word.lower() for word in text]
-    return " ".join(text)
+    # lowercase
+    text = text.lower()
 
-def removing_punctuations(text):
-    """Remove punctuations from the text."""
+    # remove punctuation
     text = re.sub('[%s]' % re.escape(string.punctuation), ' ', text)
-    text = text.replace('؛', "")
     text = re.sub('\s+', ' ', text).strip()
-    return text
 
-def removing_urls(text):
-    """Remove URLs from the text."""
-    url_pattern = re.compile(r'https?://\S+|www\.\S+')
-    return url_pattern.sub(r'', text)
+    # remove stopwords
+    text = " ".join([word for word in text.split() if word not in stop_words])
 
-def remove_small_sentences(df):
-    """Remove sentences with less than 3 words."""
-    for i in range(len(df)):
-        if len(df.text.iloc[i].split()) < 3:
-            df.text.iloc[i] = np.nan
-
-def normalize_text(text):
-    text = lower_case(text)
-    text = remove_stop_words(text)
-    text = removing_numbers(text)
-    text = removing_punctuations(text)
-    text = removing_urls(text)
-    text = lemmatization(text)
+    # lemmatization
+    text = " ".join([lemmatizer.lemmatize(word) for word in text.split()])
 
     return text
 
@@ -112,7 +89,7 @@ PREDICTION_COUNT = Counter(
 
 # ------------------------------------------------------------------------------------------
 # Model and vectorizer setup
-model_name = "my_model"
+model_name = "sentiment_model"
 def get_latest_model_version(model_name):
     client = mlflow.MlflowClient()
     latest_version = client.get_latest_versions(model_name, stages=["Staging"])
@@ -121,19 +98,28 @@ def get_latest_model_version(model_name):
     return latest_version[0].version if latest_version else None
 
 model_version = get_latest_model_version(model_name)
+
 model_uri = f'models:/{model_name}/{model_version}'
 print(f"Fetching model from: {model_uri}")
+
 model = mlflow.pyfunc.load_model(model_uri)
+
+# 🔥 IMPORTANT
 vectorizer = pickle.load(open('models/vectorizer.pkl', 'rb'))
 
-# Routes
+# =========================
+# ROUTES
+# =========================
 @app.route("/")
 def home():
     REQUEST_COUNT.labels(method="GET", endpoint="/").inc()
     start_time = time.time()
+
     response = render_template("index.html", result=None)
+
     REQUEST_LATENCY.labels(endpoint="/").observe(time.time() - start_time)
     return response
+
 
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -141,28 +127,29 @@ def predict():
     start_time = time.time()
 
     text = request.form["text"]
-    # Clean text
-    text = normalize_text(text)
-    # Transform
-    features = vectorizer.transform([text])
 
-    # Predict
-    result = model.predict(features)
-    prediction = result[0]
+    # 🔥 FIX 1: correct preprocessing
+    processed_text = preprocess_text(text)
 
-    # Increment prediction count metric
-    PREDICTION_COUNT.labels(prediction=str(prediction)).inc()
+    # 🔥 FIX 2: convert to vector
+    text_vector = vectorizer.transform([processed_text])
 
-    # Measure latency
+    # 🔥 FIX 3: prediction
+    result = model.predict(text_vector)[0]
+
+    # 🔥 FIX 4: human readable output
+    prediction = "Positive" if result == 1 else "Negative"
+
+    PREDICTION_COUNT.labels(prediction=prediction).inc()
     REQUEST_LATENCY.labels(endpoint="/predict").observe(time.time() - start_time)
 
     return render_template("index.html", result=prediction)
 
+
 @app.route("/metrics", methods=["GET"])
 def metrics():
-    """Expose only custom Prometheus metrics."""
     return generate_latest(registry), 200, {"Content-Type": CONTENT_TYPE_LATEST}
 
+
 if __name__ == "__main__":
-    # app.run(debug=True) # for local use
-    app.run(debug=True, host="0.0.0.0", port=5000)  # Accessible from outside Docker
+    app.run(debug=True, host="0.0.0.0", port=5000)

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sentiment Analysis</title>
+
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -11,6 +12,7 @@
             text-align: center;
             padding: 20px;
         }
+
         .container {
             max-width: 500px;
             margin: auto;
@@ -19,9 +21,11 @@
             border-radius: 10px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
+
         h1 {
             color: #333;
         }
+
         textarea {
             width: 100%;
             padding: 10px;
@@ -30,6 +34,7 @@
             resize: none;
             font-size: 16px;
         }
+
         button {
             background-color: #4CAF50;
             color: white;
@@ -40,21 +45,25 @@
             border-radius: 5px;
             font-size: 16px;
         }
+
         button:hover {
             background-color: #45a049;
         }
+
         .result {
             margin-top: 20px;
             font-size: 22px;
             font-weight: bold;
-            padding: 10px;
-            border-radius: 5px;
+            padding: 12px;
+            border-radius: 6px;
         }
+
         .positive {
             color: #155724;
             background-color: #d4edda;
             border: 1px solid #c3e6cb;
         }
+
         .negative {
             color: #721c24;
             background-color: #f8d7da;
@@ -62,25 +71,38 @@
         }
     </style>
 </head>
+
 <body>
 
     <div class="container">
         <h1>Sentiment Analysis</h1>
+
         <form action="/predict" method="POST">
             <label for="text">Write text:</label><br>
-            <textarea id="text" name="text" rows="5" placeholder="Enter your text here..."></textarea><br>
+
+            <textarea id="text" name="text" rows="5"
+                placeholder="Enter your text here...">{{ request.form.text }}</textarea><br>
+
             <button type="submit">Predict</button>
         </form>
 
+        <!-- RESULT SECTION -->
         {% if result is not none %}
-            <div class="result {% if result == 1 %}positive{% else %}negative{% endif %}">
-                {% if result == 1 %}
+
+            <div class="result {% if result == "Positive" %}positive{% else %}negative{% endif %}">
+
+                {% if result == "Positive" %}
                     😊 Positive Sentiment
-                {% else %}
+                {% elif result == "Negative" %}
                     😞 Negative Sentiment
+                {% else %}
+                    ⚠️ Unknown Prediction
                 {% endif %}
+
             </div>
+
         {% endif %}
+
     </div>
 
 </body>

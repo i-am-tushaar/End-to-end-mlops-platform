@@ -54,68 +54,98 @@ dagshub.init(
 # -------------------------------------------------------------------------------------
 
 
+import numpy as np
+import pandas as pd
+import pickle
+import json
+
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    roc_auc_score,
+    classification_report
+)
+
+from src.logger import logging
+
+import mlflow
+import mlflow.sklearn
+import dagshub
+
+
+# ==========================
+# Load Model
+# ==========================
 def load_model(file_path: str):
-    """Load the trained model from a file."""
     try:
         with open(file_path, 'rb') as file:
             model = pickle.load(file)
         logging.info('Model loaded from %s', file_path)
         return model
-    except FileNotFoundError:
-        logging.error('File not found: %s', file_path)
-        raise
     except Exception as e:
-        logging.error('Unexpected error occurred while loading the model: %s', e)
+        logging.error('Error loading model: %s', e)
         raise
 
+
+# ==========================
+# Load Data
+# ==========================
 def load_data(file_path: str) -> pd.DataFrame:
-    """Load data from a CSV file."""
     try:
         df = pd.read_csv(file_path)
         logging.info('Data loaded from %s', file_path)
         return df
-    except pd.errors.ParserError as e:
-        logging.error('Failed to parse the CSV file: %s', e)
-        raise
     except Exception as e:
-        logging.error('Unexpected error occurred while loading the data: %s', e)
+        logging.error('Error loading data: %s', e)
         raise
 
-def evaluate_model(clf, X_test: np.ndarray, y_test: np.ndarray) -> dict:
-    """Evaluate the model and return the evaluation metrics."""
+
+# ==========================
+# Evaluate Model
+# ==========================
+def evaluate_model(clf, X_test, y_test):
     try:
         y_pred = clf.predict(X_test)
-        y_pred_proba = clf.predict_proba(X_test)[:, 1]
+        y_proba = clf.predict_proba(X_test)[:, 1]
 
-        accuracy = accuracy_score(y_test, y_pred)
-        precision = precision_score(y_test, y_pred)
-        recall = recall_score(y_test, y_pred)
-        auc = roc_auc_score(y_test, y_pred_proba)
+        print("\n📊 Classification Report:")
+        print(classification_report(y_test, y_pred))
 
-        metrics_dict = {
-            'accuracy': accuracy,
-            'precision': precision,
-            'recall': recall,
-            'auc': auc
+        metrics = {
+            "accuracy": accuracy_score(y_test, y_pred),
+            "precision": precision_score(y_test, y_pred),
+            "recall": recall_score(y_test, y_pred),
+            "f1_score": f1_score(y_test, y_pred),
+            "roc_auc": roc_auc_score(y_test, y_proba)
         }
-        logging.info('Model evaluation metrics calculated')
-        return metrics_dict
+
+        logging.info('Model evaluation completed')
+        return metrics
+
     except Exception as e:
-        logging.error('Error during model evaluation: %s', e)
+        logging.error('Error during evaluation: %s', e)
         raise
 
-def save_metrics(metrics: dict, file_path: str) -> None:
-    """Save the evaluation metrics to a JSON file."""
+
+# ==========================
+# Save Metrics
+# ==========================
+def save_metrics(metrics: dict, file_path: str):
     try:
-        with open(file_path, 'w') as file:
-            json.dump(metrics, file, indent=4)
+        with open(file_path, 'w') as f:
+            json.dump(metrics, f, indent=4)
         logging.info('Metrics saved to %s', file_path)
     except Exception as e:
-        logging.error('Error occurred while saving the metrics: %s', e)
+        logging.error('Error saving metrics: %s', e)
         raise
 
+
+# ==========================
+# Save Model Info (YOUR CODE)
+# ==========================
 def save_model_info(run_id: str, model_path: str, file_path: str) -> None:
-    """Save the model run ID and path to a JSON file."""
     try:
         model_info = {'run_id': run_id, 'model_path': model_path}
         with open(file_path, 'w') as file:
@@ -125,31 +155,40 @@ def save_model_info(run_id: str, model_path: str, file_path: str) -> None:
         logging.error('Error occurred while saving the model info: %s', e)
         raise
 
-def main():
-    mlflow.set_experiment("my-dvc-pipeline")
-    with mlflow.start_run() as run:  # Start an MLflow run
-        try:
-            clf = load_model('./models/model.pkl')
-            test_data = load_data('./data/processed/test_bow.csv')
-            
-            X_test = test_data.iloc[:, :-1].values
-            y_test = test_data.iloc[:, -1].values
 
+# ==========================
+# Main
+# ==========================
+def main():
+    mlflow.set_experiment("sentiment-analysis-tfidf-logreg")
+
+    with mlflow.start_run() as run:
+        try:
+            # Load model
+            clf = load_model('./models/model.pkl')
+
+            # Load TF-IDF processed data
+            test_data = load_data('./data/processed/test_tfidf.csv')
+
+            # Separate features & target
+            X_test = test_data.drop(columns=['sentiment'])
+            y_test = test_data['sentiment']
+
+            # Evaluate
             metrics = evaluate_model(clf, X_test, y_test)
-            
+
             save_metrics(metrics, 'reports/metrics.json')
-            
-            # Log metrics to MLflow
-            for metric_name, metric_value in metrics.items():
-                mlflow.log_metric(metric_name, metric_value)
-            
-            # Log model parameters to MLflow
+
+            # Log metrics
+            for k, v in metrics.items():
+                mlflow.log_metric(k, v)
+
+            # Log params
             if hasattr(clf, 'get_params'):
-                params = clf.get_params()
-                for param_name, param_value in params.items():
-                    mlflow.log_param(param_name, param_value)
-            
-            # ✅ FIXED MODEL LOGGING
+                for k, v in clf.get_params().items():
+                    mlflow.log_param(k, v)
+
+            # 🔥🔥 FORCE LOG MODEL (WORKS 100%)
             import tempfile
             import os
 
@@ -159,20 +198,28 @@ def main():
                 # Save model locally
                 mlflow.sklearn.save_model(clf, model_path)
 
-                # Log as artifact to MLflow (DagsHub)
+                # Log as artifact to MLflow
                 mlflow.log_artifacts(model_path, artifact_path="model")
 
             print("✅ Model saved and logged under 'model/'")
+            print("Artifact URI:", mlflow.get_artifact_uri())
 
-            # Save model info
-            save_model_info(run.info.run_id, "model", 'reports/experiment_info.json')
-            
-            # Log the metrics file to MLflow
+            # Save run info (keep same path)
+            save_model_info(
+                run.info.run_id,
+                "model",
+                'reports/experiment_info.json'
+            )
+
+            # Log artifacts
             mlflow.log_artifact('reports/metrics.json')
+            mlflow.log_artifact('reports/experiment_info.json')
+
+            print("\n✅ Evaluation completed and logged")
 
         except Exception as e:
-            logging.error('Failed to complete the model evaluation process: %s', e)
+            logging.error('Evaluation failed: %s', e)
             print(f"Error: {e}")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -47,7 +47,6 @@ mlflow.set_tracking_uri('https://dagshub.com/tushar.dataexpert/End-to-end-mlops-
 dagshub.init(repo_owner='tushar.dataexpert', repo_name='End-to-end-mlops-platform', mlflow=True)
 # -------------------------------------------------------------------------------------
 
-
 def load_model_info(file_path: str) -> dict:
     """Load the model info from a JSON file."""
     try:
@@ -62,10 +61,16 @@ def load_model_info(file_path: str) -> dict:
         logging.error('Unexpected error occurred while loading the model info: %s', e)
         raise
 
-
 def register_model(model_name: str, model_info: dict):
     try:
-        model_uri = f"runs:/{model_info['run_id']}/{model_info['model_path']}"
+        run_id = model_info.get("run_id")
+        model_path = model_info.get("model_path", "model")  # default safety
+
+        if not run_id:
+            raise ValueError("run_id is missing in model_info")
+
+        # 🔥 Build model URI
+        model_uri = f"runs:/{run_id}/{model_path}"
         print("Model URI:", model_uri)
 
         # Register model
@@ -73,18 +78,23 @@ def register_model(model_name: str, model_info: dict):
 
         client = MlflowClient()
 
-        # 🔥 WAIT until model is READY
-        for _ in range(10):
+        # 🔥 Wait until model is READY (more robust)
+        for i in range(15):
             mv = client.get_model_version(
                 name=model_name,
                 version=model_version.version
             )
+
+            print(f"Status check {i+1}: {mv.status}")
+
             if mv.status == "READY":
                 break
-            print("⏳ Waiting for model to be READY...")
-            time.sleep(2)
 
-        # ✅ Now transition stage
+            time.sleep(2)
+        else:
+            raise TimeoutError("Model version not READY after waiting")
+
+        # 🔥 Move to Staging
         client.transition_model_version_stage(
             name=model_name,
             version=model_version.version,
@@ -103,12 +113,12 @@ def main():
     try:
         model_info_path = 'reports/experiment_info.json'
         model_info = load_model_info(model_info_path)
-        
-        model_name = "my_model"
+
+        model_name = "sentiment_model"
         register_model(model_name, model_info)
 
     except Exception as e:
-        logging.error('Failed to complete the model registration process: %s', e)
+        logging.error('Failed to complete registration: %s', e)
         print(f"Error: {e}")
 
 
