@@ -4,23 +4,15 @@ import pickle
 import json
 from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
 import logging
-import os
-from src.logger import logging
-
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
-
-os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv("MLFLOW_TRACKING_USERNAME")
-os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("MLFLOW_TRACKING_PASSWORD")
-os.environ["MLFLOW_TRACKING_INSECURE_TLS"] = "true"
-
 import mlflow
 import mlflow.sklearn
 import dagshub
-
+import os
 from src.logger import logging
+
+# Load environment variables FIRST
+from dotenv import load_dotenv
+load_dotenv()
 
 
 # Below code block is for production use
