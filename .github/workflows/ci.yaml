@@ -6,11 +6,6 @@ jobs:
   project-testing:
     runs-on: ubuntu-latest
 
-    # 🔥 ADD HERE (job level)
-    env:
-      MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
-      MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
-
     steps:
       - name: checkout code
         uses: actions/checkout@v3
@@ -33,5 +28,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: run pipeline
+        env:
+          CAPSTONE_TEST: ${{ secrets.CAPSTONE_TEST }}
         run: |
           dvc repro
