@@ -1,4 +1,5 @@
 # feature engineering
+
 import numpy as np
 import pandas as pd
 import os
@@ -7,9 +8,6 @@ import pickle
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from src.logger import logging
-
-# 🔥 import preprocessing
-from src.data.data_preprocessing import preprocess_text
 
 
 def load_params(params_path: str) -> dict:
@@ -38,13 +36,9 @@ def apply_tfidf(train_data: pd.DataFrame, test_data: pd.DataFrame, max_features:
     try:
         logging.info("Applying TF-IDF...")
 
-        # 🔥 Apply preprocessing
-        train_data['review'] = train_data['review'].apply(preprocess_text)
-        test_data['review'] = test_data['review'].apply(preprocess_text)
-
         vectorizer = TfidfVectorizer(
             max_features=max_features,
-            ngram_range=(1, 2)   # 🔥 big improvement
+            ngram_range=(1, 2)
         )
 
         X_train = train_data['review'].values
@@ -53,20 +47,28 @@ def apply_tfidf(train_data: pd.DataFrame, test_data: pd.DataFrame, max_features:
         X_test = test_data['review'].values
         y_test = test_data['sentiment'].values
 
+        # ✅ FIT ONLY ON TRAIN
         X_train_tfidf = vectorizer.fit_transform(X_train)
+
+        # ✅ TRANSFORM TEST
         X_test_tfidf = vectorizer.transform(X_test)
 
-        # 🔥 keep label name consistent
+        # ✅ Convert to DataFrame
         train_df = pd.DataFrame(X_train_tfidf.toarray())
         train_df['sentiment'] = y_train
 
         test_df = pd.DataFrame(X_test_tfidf.toarray())
         test_df['sentiment'] = y_test
 
-        # 🔥 Save vectorizer
+        # ✅ Save vectorizer (AFTER fitting)
         os.makedirs("models", exist_ok=True)
         with open('models/vectorizer.pkl', 'wb') as f:
             pickle.dump(vectorizer, f)
+
+        # ✅ DEBUG CHECK (temporary)
+        with open('models/vectorizer.pkl', 'rb') as f:
+            v = pickle.load(f)
+        print("Vectorizer fitted:", hasattr(v, "idf_"))
 
         logging.info('TF-IDF applied successfully')
 
