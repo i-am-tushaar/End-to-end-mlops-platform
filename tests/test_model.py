@@ -27,7 +27,7 @@ class TestModelLoading(unittest.TestCase):
 
         # MLflow setup
         mlflow.set_tracking_uri(f'{dagshub_url}/{repo_owner}/{repo_name}.mlflow')
-        
+
         cls.model_name = "sentiment_model"
         cls.model_version = cls.get_latest_model_version(cls.model_name)
 
