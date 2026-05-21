@@ -53,7 +53,7 @@ jobs:
         run: |
           python -m unittest tests/test_flask_app.py
 
-      # ✅ Configure AWS credentials (BEST PRACTICE)
+      # ✅ Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -61,11 +61,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # ✅ Debug identity (helps catch account mismatch)
+      # ✅ Debug AWS identity (important)
       - name: Verify AWS identity
         run: aws sts get-caller-identity
 
-      # ✅ Ensure ECR repo exists (with region fix)
+      # ✅ Ensure ECR repo exists
       - name: Ensure ECR repository exists
         run: |
           aws ecr describe-repositories \
@@ -75,7 +75,7 @@ jobs:
             --repository-name ${{ secrets.ECR_REPOSITORY }} \
             --region ${{ secrets.AWS_REGION }}
 
-      # ✅ Login to ECR (correct + stable)
+      # ✅ Correct ECR login (FIXED)
       - name: Login to AWS ECR
         run: |
           aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
