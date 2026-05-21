@@ -53,7 +53,7 @@ jobs:
         run: |
           python -m unittest tests/test_flask_app.py
 
-      # ✅ Better AWS auth (IMPORTANT FIX)
+      # ✅ Configure AWS credentials (BEST PRACTICE)
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -61,16 +61,21 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # ✅ Debug (helps catch issues instantly)
+      # ✅ Debug identity (helps catch account mismatch)
       - name: Verify AWS identity
         run: aws sts get-caller-identity
 
-      # ✅ Ensure ECR repo exists (prevents push errors)
+      # ✅ Ensure ECR repo exists (with region fix)
       - name: Ensure ECR repository exists
         run: |
-          aws ecr describe-repositories --repository-names ${{ secrets.ECR_REPOSITORY }} || \
-          aws ecr create-repository --repository-name ${{ secrets.ECR_REPOSITORY }}
+          aws ecr describe-repositories \
+            --repository-names ${{ secrets.ECR_REPOSITORY }} \
+            --region ${{ secrets.AWS_REGION }} || \
+          aws ecr create-repository \
+            --repository-name ${{ secrets.ECR_REPOSITORY }} \
+            --region ${{ secrets.AWS_REGION }}
 
+      # ✅ Login to ECR (correct + stable)
       - name: Login to AWS ECR
         run: |
           aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
@@ -83,7 +88,8 @@ jobs:
 
       - name: Tag Docker image
         run: |
-          docker tag ${{ secrets.ECR_REPOSITORY }}:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
+          docker tag ${{ secrets.ECR_REPOSITORY }}:latest \
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
 
       - name: Push Docker image to ECR
         run: |
