@@ -53,13 +53,26 @@ jobs:
         run: |
           python -m unittest tests/test_flask_app.py
 
-      - name: Login to AWS ECR
-        if: success()
-        run: |
-          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws configure set region ${{ secrets.AWS_REGION }}
+      # ✅ Better AWS auth (IMPORTANT FIX)
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
+      # ✅ Debug (helps catch issues instantly)
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
+
+      # ✅ Ensure ECR repo exists (prevents push errors)
+      - name: Ensure ECR repository exists
+        run: |
+          aws ecr describe-repositories --repository-names ${{ secrets.ECR_REPOSITORY }} || \
+          aws ecr create-repository --repository-name ${{ secrets.ECR_REPOSITORY }}
+
+      - name: Login to AWS ECR
+        run: |
           aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
           | docker login --username AWS --password-stdin \
           ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
