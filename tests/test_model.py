@@ -1,19 +1,17 @@
-# load test + signature test + performance test
-
 import unittest
 import mlflow
 import os
 import pandas as pd
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-
 from dotenv import load_dotenv
+
 load_dotenv()
+
 
 class TestModelLoading(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Load env variables
         dagshub_token = os.getenv("CAPSTONE_TEST")
         if not dagshub_token:
             raise EnvironmentError("CAPSTONE_TEST environment variable is not set")
@@ -21,15 +19,15 @@ class TestModelLoading(unittest.TestCase):
         os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
         os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
 
-        dagshub_url = "https://dagshub.com"
-        repo_owner = "tushar.dataexpert"
-        repo_name = "End-to-end-mlops-platform"
-
-        # MLflow setup
-        mlflow.set_tracking_uri(f'{dagshub_url}/{repo_owner}/{repo_name}.mlflow')
+        mlflow.set_tracking_uri(
+            "https://dagshub.com/tushar.dataexpert/End-to-end-mlops-platform.mlflow"
+        )
 
         cls.model_name = "sentiment_model"
         cls.model_version = cls.get_latest_model_version(cls.model_name)
+
+        if cls.model_version is None:
+            raise Exception("No model versions found in MLflow")
 
         cls.model_uri = f"models:/{cls.model_name}/{cls.model_version}"
         cls.model = mlflow.pyfunc.load_model(cls.model_uri)
@@ -37,44 +35,23 @@ class TestModelLoading(unittest.TestCase):
         cls.test_data = pd.read_csv("data/processed/test_tfidf.csv")
 
     @staticmethod
-    def get_latest_model_version(model_name, stage=None):
+    def get_latest_model_version(model_name):
         client = mlflow.MlflowClient()
+        versions = client.search_model_versions(f"name='{model_name}'")
+        return sorted(versions, key=lambda x: int(x.version))[-1].version if versions else None
 
-        if stage:
-            latest_version = client.get_latest_versions(model_name, stages=[stage])
-        else:
-            latest_version = client.get_latest_versions(model_name)
-
-        return latest_version[0].version if latest_version else None
-
-    # ==========================
-    # Test 1: Model Loading
-    # ==========================
     def test_model_loaded_properly(self):
         self.assertIsNotNone(self.model)
 
-    # ==========================
-    # Test 2: Model Signature
-    # ==========================
     def test_model_signature(self):
-        # ✅ FIX 3: numeric input (same as training)
         sample_input = self.test_data.drop(columns=['sentiment']).iloc[:1]
-
         prediction = self.model.predict(sample_input)
 
-        # Input should have same number of features
-        self.assertEqual(
-            sample_input.shape[1],
-            self.test_data.drop(columns=['sentiment']).shape[1]
-        )
-
-        # Output shape check
+        self.assertEqual(sample_input.shape[1],
+                         self.test_data.drop(columns=['sentiment']).shape[1])
         self.assertEqual(len(prediction), sample_input.shape[0])
         self.assertEqual(len(prediction.shape), 1)
 
-    # ==========================
-    # Test 3: Model Performance
-    # ==========================
     def test_model_performance(self):
         X_test = self.test_data.drop(columns=['sentiment'])
         y_test = self.test_data['sentiment']
@@ -82,11 +59,10 @@ class TestModelLoading(unittest.TestCase):
         y_pred = self.model.predict(X_test)
 
         accuracy = accuracy_score(y_test, y_pred)
-        precision = precision_score(y_test, y_pred)
-        recall = recall_score(y_test, y_pred)
-        f1 = f1_score(y_test, y_pred)
+        precision = precision_score(y_test, y_pred, zero_division=0)
+        recall = recall_score(y_test, y_pred, zero_division=0)
+        f1 = f1_score(y_test, y_pred, zero_division=0)
 
-        # realistic thresholds
         self.assertGreaterEqual(accuracy, 0.60)
         self.assertGreaterEqual(precision, 0.60)
         self.assertGreaterEqual(recall, 0.60)
