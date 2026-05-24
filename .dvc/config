@@ -1,4 +1,6 @@
 [core]
-    remote = myremote
+    remote = local_s3_remote
 ['remote "myremote"']
     url = s3://mlops-2-bucket
+['remote "local_s3_remote"']
+    url = ../local_s3

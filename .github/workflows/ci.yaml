@@ -3,102 +3,50 @@ name: CI Pipeline
 on: push
 
 jobs:
-  setup-and-train:
+  project-testing:
     runs-on: ubuntu-latest
 
-    env:
-      CAPSTONE_TEST: ${{ secrets.CAPSTONE_TEST }}
-
     steps:
-      - uses: actions/checkout@v3
+      - name: checkout code
+        uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-python-env
+      - name: setup python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.10'
 
-      - name: Run pipeline
-        run: dvc repro
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-  model-tests:
-    runs-on: ubuntu-latest
-    needs: setup-and-train
+      - name: install dependencies
+        run: |
+          pip install -r requirements.txt
 
-    env:
-      CAPSTONE_TEST: ${{ secrets.CAPSTONE_TEST }}
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: ./.github/actions/setup-python-env
+      - name: run pipeline
+        env:
+          CAPSTONE_TEST: ${{ secrets.CAPSTONE_TEST }}
+        run: |
+          dvc repro
 
       - name: Run model tests
-        run: python -m unittest tests/test_model.py
-
-  promote-model:
-    runs-on: ubuntu-latest
-    needs: model-tests
-
-    env:
-      CAPSTONE_TEST: ${{ secrets.CAPSTONE_TEST }}
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: ./.github/actions/setup-python-env
+        env:
+          CAPSTONE_TEST: ${{ secrets.CAPSTONE_TEST }}
+        run: |
+          python -m unittest tests/test_model.py
 
       - name: Promote model to production
+        if: success()
+        env:
+          CAPSTONE_TEST: ${{ secrets.CAPSTONE_TEST }}
         run: python scripts/promote_model.py
 
-  flask-tests:
-    runs-on: ubuntu-latest
-    needs: promote-model
-
-    env:
-      CAPSTONE_TEST: ${{ secrets.CAPSTONE_TEST }}
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: ./.github/actions/setup-python-env
-
       - name: Run Flask app tests
+        if: success()
+        env:
+          CAPSTONE_TEST: ${{ secrets.CAPSTONE_TEST }}
         run: python -m unittest tests/test_flask_app.py
-
-  docker-build-push:
-    runs-on: ubuntu-latest
-    needs: flask-tests
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: ./.github/actions/setup-python-env
-
-      # AWS setup
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Verify AWS identity
-        run: aws sts get-caller-identity
-
-      - name: Ensure ECR repository exists
-        run: |
-          aws ecr describe-repositories \
-            --repository-names ${{ secrets.ECR_REPOSITORY }} \
-            --region ${{ secrets.AWS_REGION }} || \
-          aws ecr create-repository \
-            --repository-name ${{ secrets.ECR_REPOSITORY }} \
-            --region ${{ secrets.AWS_REGION }}
-
-      - name: Login to AWS ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build Docker image
-        run: |
-          docker build -t ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:latest .
-
-      - name: Push Docker image to ECR
-        run: |
-          docker push ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:latest
