@@ -107,22 +107,26 @@ If the path points to your Anaconda environment (e.g., C:\Users\Personal\anacond
 ----------------------------------------------------------------------------------
 
 39. Create an EKS cluster:
-    eksctl create cluster --name flask-app-cluster --region us-east-1 --nodegroup-name flask-app-nodes --node-type t3.small --nodes 1 --nodes-min 1 --nodes-max 1 --managed
-
+    eksctl create cluster --name flask-app-cluster --region ap-south-1 --nodegroup-name flask-app-nodes --node-type t3.small --nodes 1 --nodes-min 1 --nodes-max 1 --managed
+    eksctl create cluster --name flask-app-cluster --region ap-south-1 --nodegroup-name flask-app-nodes --node-type t3.medium --nodes 1 --managed --version 1.31
+    eksctl create cluster --name flask-app-cluster --region ap-south-1 --nodegroup-name flask-app-nodes --node-type t2.micro --nodes 1 --managed --version 1.31
+    eksctl create cluster --name flask-app-cluster --region ap-south-1 --nodegroup-name flask-app-nodes --node-type t3.medium --nodes 1 --managed --version 1.31
+    
 40. Update kubectl Config(Once the cluster is created, eksctl will automatically update your kubectl config file. However, you can verify and set it manually using:)
-aws eks --region us-east-1 update-kubeconfig --name flask-app-cluster (This ensures your kubectl is pointing to the correct cluster.)
+aws eks --region ap-south-1 update-kubeconfig --name flask-app-cluster (This ensures your kubectl is pointing to the correct cluster.)
 
 41. Check EKS Cluster Configuration Ensure you can access your EKS cluster by running
     aws eks list-clusters
 
 42. Delete cluster(optional):
-    eksctl delete cluster --name flask-app-cluster --region us-east-1
+    eksctl delete cluster --name flask-app-cluster --region ap-south-1
+    
 
     Also, verify cluster deletion:
-    eksctl get cluster --region us-east-1
+    eksctl get cluster --region ap-south-1
 
 43. Verify the cluster status:
-    aws eks --region us-east-1 describe-cluster --name flask-app-cluster --query "cluster.status"
+    aws eks --region ap-south-1 describe-cluster --name flask-app-cluster --query "cluster.status"
 
 
 44. Check cluster connectivity:
